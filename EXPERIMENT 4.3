@@ -1,0 +1,70 @@
+-- Create StudentEnrollments table
+CREATE TABLE StudentEnrollments (
+    student_id INT PRIMARY KEY,
+    student_name VARCHAR(100) NOT NULL,
+    course_id VARCHAR(10) NOT NULL,
+    enrollment_date DATE NOT NULL
+);
+
+-- Insert sample data
+INSERT INTO StudentEnrollments VALUES
+(1, 'Ashish', 'CSE101', '2024-06-01'),
+(2, 'Smaran', 'CSE102', '2024-06-01'),
+(3, 'Vaibhav', 'CSE103', '2024-06-01');
+
+------------------------------------------------
+-- Part A: Simulating Deadlock Between Two Transactions
+------------------------------------------------
+-- Session 1
+START TRANSACTION;
+UPDATE StudentEnrollments SET course_id = 'CSE201' WHERE student_id = 1;
+
+-- Session 2
+START TRANSACTION;
+UPDATE StudentEnrollments SET course_id = 'CSE202' WHERE student_id = 2;
+
+-- Back to Session 1 (trying reverse order)
+UPDATE StudentEnrollments SET course_id = 'CSE301' WHERE student_id = 2;
+
+-- Back to Session 2 (trying reverse order, causes deadlock)
+UPDATE StudentEnrollments SET course_id = 'CSE302' WHERE student_id = 1;
+-- At this point, DB detects deadlock → one transaction aborted automatically
+
+------------------------------------------------
+-- Part B: Applying MVCC for Concurrent Read/Write
+------------------------------------------------
+-- User A
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+START TRANSACTION;
+SELECT enrollment_date FROM StudentEnrollments WHERE student_id = 1;
+
+-- User B (concurrent update)
+START TRANSACTION;
+UPDATE StudentEnrollments SET enrollment_date = '2024-07-10' WHERE student_id = 1;
+COMMIT;
+
+-- User A (still in same transaction, sees old snapshot)
+SELECT enrollment_date FROM StudentEnrollments WHERE student_id = 1;
+COMMIT;
+
+------------------------------------------------
+-- Part C: Comparing Behavior With and Without MVCC
+------------------------------------------------
+-- Without MVCC (using SELECT FOR UPDATE → blocks reader)
+-- Session 1
+START TRANSACTION;
+UPDATE StudentEnrollments SET enrollment_date = '2024-07-10' WHERE student_id = 1;
+
+-- Session 2 (blocks until Session 1 commits)
+START TRANSACTION;
+SELECT enrollment_date FROM StudentEnrollments WHERE student_id = 1 FOR UPDATE;
+
+-- With MVCC (non-blocking)
+-- Session 1
+START TRANSACTION;
+UPDATE StudentEnrollments SET enrollment_date = '2024-07-10' WHERE student_id = 1;
+
+-- Session 2 (reads old value, no block)
+START TRANSACTION;
+SELECT enrollment_date FROM StudentEnrollments WHERE student_id = 1;
+COMMIT;
